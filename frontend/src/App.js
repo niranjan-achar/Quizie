@@ -39,7 +39,7 @@ const AppContent = () => {
 
           <Link to="/" className="logo">
             <FiBookOpen className="logo-icon" />
-            <span className="logo-text">AI Quiz System</span>
+            <span className="logo-text">Quizie</span>
           </Link>
 
           <div className="desktop-nav">
@@ -136,7 +136,7 @@ const AppContent = () => {
 
       <footer className="footer">
         <div className="container">
-          <p>&copy; 2026 AI Quiz System. Powered by GROK LLM.</p>
+          <p>&copy; 2026 Quizie. Powered by GROK LLM.</p>
         </div>
       </footer>
     </div>
