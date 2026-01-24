@@ -16,9 +16,10 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(localStorage.getItem('token'));
 
-  const API_BASE_URL = `https://${window.location.hostname}/api`;
-  // const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://quizie-backend.vercel.app/api';
+  // MUST use backend domain, not frontend domain
+  const API_BASE_URL = 'https://quizie-backend.vercel.app/api';
 
+  console.log('🔐 AuthContext API URL:', API_BASE_URL);
 
   // Axios instance with auth header
   const axiosInstance = axios.create({
