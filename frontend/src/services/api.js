@@ -1,10 +1,11 @@
 import axios from 'axios';
 
-// Production backend URL - hardcoded for Vercel
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://quizie-backend.vercel.app/api';
+// HARDCODED Production backend URL for Vercel
+const API_BASE_URL = 'https://quizie-backend.vercel.app/api';
 
 console.log('🔧 API Base URL:', API_BASE_URL);
 console.log('🔧 Environment:', process.env.NODE_ENV);
+console.log('🔧 process.env.REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
