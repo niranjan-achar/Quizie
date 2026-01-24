@@ -26,8 +26,8 @@ connectDB();
 // Middleware
 app.use(cors({
   origin: [
-    'http://localhost:3000',
     'https://quizie-quiz.vercel.app',
+    'http://localhost:3000',
     'https://*.vercel.app'
   ],
   credentials: true
