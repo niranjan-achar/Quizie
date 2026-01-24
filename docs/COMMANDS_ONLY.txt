@@ -1,0 +1,115 @@
+# ============================================
+# COMPLETE WORKFLOW - COMMANDS ONLY
+# ============================================
+
+# PHASE 1: LOCAL DEVELOPMENT
+cd /home/niranjan/Devops/Quizie
+git status
+git add .
+git commit -m "feat: your commit message"
+git push origin main
+
+# PHASE 2: VERIFY GITHUB ACTIONS
+gh run list
+gh run watch
+
+# PHASE 3: VERIFY DOCKER HUB IMAGES
+docker pull niranjanachar/quizie-backend:latest
+docker pull niranjanachar/quizie-frontend:latest
+docker images | grep quizie
+
+# PHASE 4: START MINIKUBE
+minikube status
+minikube start --memory=8192 --cpus=4 --driver=docker
+kubectl cluster-info
+kubectl get nodes
+kubectl config use-context minikube
+
+# PHASE 5: ANSIBLE DEPLOYMENT
+ansible --version
+ansible-galaxy collection install community.kubernetes
+pip3 install kubernetes pyyaml jsonpatch
+ansible-inventory -i ansible/inventory.yaml --list
+ansible-playbook -i ansible/inventory.yaml ansible/playbook-deploy-k8s.yaml -v
+
+# PHASE 6: VERIFY DEPLOYMENT
+kubectl get namespace quizie
+kubectl get pods -n quizie
+kubectl get pods -n quizie -o wide
+kubectl get svc -n quizie
+kubectl get deployments -n quizie
+kubectl get statefulset -n quizie
+kubectl get secrets -n quizie
+kubectl get configmaps -n quizie
+
+# PHASE 7: VIEW LOGS
+kubectl logs -n quizie -l app=backend --tail=50
+kubectl logs -n quizie -l app=frontend --tail=50
+kubectl logs -n quizie -l app=mongodb --tail=50
+
+# PHASE 8: PORT FORWARDING
+kubectl port-forward -n quizie svc/frontend-service 3000:80 &
+kubectl port-forward -n quizie svc/backend-service 5000:5000 &
+
+# PHASE 9: TEST APPLICATION
+curl http://localhost:5000/api/health
+curl http://localhost:3000 | head -20
+xdg-open http://localhost:3000
+
+# PHASE 10: MONITORING
+kubectl top pods -n quizie
+kubectl top nodes
+kubectl get events -n quizie --sort-by='.lastTimestamp' | tail -20
+
+# PHASE 11: TEST SELF-HEALING
+kubectl delete pod -n quizie -l app=backend | head -n 1
+kubectl get pods -n quizie --watch
+
+# PHASE 12: SCALING
+kubectl scale deployment backend-deployment -n quizie --replicas=3
+kubectl scale deployment frontend-deployment -n quizie --replicas=4
+kubectl get pods -n quizie
+kubectl scale deployment backend-deployment -n quizie --replicas=2
+kubectl scale deployment frontend-deployment -n quizie --replicas=2
+
+# PHASE 13: UPDATE DEPLOYMENT
+git add .
+git commit -m "fix: update"
+git push origin main
+kubectl rollout restart deployment backend-deployment -n quizie
+kubectl rollout restart deployment frontend-deployment -n quizie
+kubectl rollout status deployment backend-deployment -n quizie
+kubectl rollout status deployment frontend-deployment -n quizie
+
+# PHASE 14: CLEANUP
+kubectl delete namespace quizie
+minikube stop
+minikube delete
+
+# ============================================
+# TROUBLESHOOTING COMMANDS
+# ============================================
+
+kubectl describe pod <pod-name> -n quizie
+kubectl logs <pod-name> -n quizie
+kubectl get events -n quizie
+kubectl exec -it mongodb-0 -n quizie -- mongosh -u admin -p
+kubectl get secret mongodb-secret -n quizie -o yaml
+kubectl get configmap db-config -n quizie -o yaml
+ps aux | grep port-forward
+netstat -tlnp | grep -E '3000|5000'
+ansible-playbook ansible/playbook-deploy-k8s.yaml --syntax-check
+ansible-inventory -i ansible/inventory.yaml --list
+
+# ============================================
+# QUICK COMMANDS
+# ============================================
+
+kubectl get pods -n quizie
+kubectl get svc -n quizie
+kubectl logs -n quizie -l app=backend -f
+kubectl port-forward -n quizie svc/frontend-service 3000:80
+kubectl port-forward -n quizie svc/backend-service 5000:5000
+kubectl scale deployment backend-deployment -n quizie --replicas=3
+kubectl rollout restart deployment backend-deployment -n quizie
+kubectl delete namespace quizie

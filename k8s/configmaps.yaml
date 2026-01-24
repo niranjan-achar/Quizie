@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-config
+  namespace: quizie
+data:
+  mongodb-uri: "mongodb://admin:password@mongodb-service:27017/quizie?authSource=admin"

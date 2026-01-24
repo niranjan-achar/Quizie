@@ -1,0 +1,130 @@
+---
+# ============================================
+# Ansible Playbook - Build and Push Docker Images
+# ============================================
+# Purpose: Build Docker images and push to Docker Hub
+#
+# Run: ansible-playbook -i ansible/inventory.yaml ansible/playbook-docker-build.yaml \
+#      --extra-vars "docker_username=YOUR_USERNAME docker_password=YOUR_PASSWORD"
+
+- name: Build and Push Docker Images
+  hosts: localhost
+  gather_facts: yes
+  
+  vars:
+    project_name: quizie
+    project_path: "{{ playbook_dir }}/.."
+    docker_username: "{{ docker_username | default('niranjanachar') }}"
+    docker_password: "{{ docker_password | default('') }}"
+    git_commit: "{{ git_commit | default('latest') }}"
+  
+  tasks:
+    # ============ VALIDATE INPUTS ============
+    - name: Check Docker is installed
+      command: docker --version
+      register: docker_version
+      changed_when: false
+    
+    - name: Display Docker version
+      debug:
+        msg: "Docker version: {{ docker_version.stdout }}"
+    
+    # ============ LOGIN TO DOCKER HUB ============
+    - name: Login to Docker Hub
+      command: docker login -u "{{ docker_username }}" -p "{{ docker_password }}"
+      when: docker_password | length > 0
+      no_log: yes
+    
+    # ============ BUILD BACKEND IMAGE ============
+    - name: Build backend Docker image
+      command: |
+        docker build -t {{ docker_username }}/quizie-backend:{{ git_commit }} \
+                     -t {{ docker_username }}/quizie-backend:latest \
+                     -f backend/Dockerfile \
+                     {{ project_path }}
+      register: backend_build
+      changed_when: "'Successfully tagged' in backend_build.stdout"
+    
+    - name: Display backend build result
+      debug:
+        msg: "Backend image built: {{ docker_username }}/quizie-backend:{{ git_commit }}"
+    
+    # ============ BUILD FRONTEND IMAGE ============
+    - name: Build frontend Docker image
+      command: |
+        docker build -t {{ docker_username }}/quizie-frontend:{{ git_commit }} \
+                     -t {{ docker_username }}/quizie-frontend:latest \
+                     -f frontend/Dockerfile \
+                     {{ project_path }}
+      register: frontend_build
+      changed_when: "'Successfully tagged' in frontend_build.stdout"
+    
+    - name: Display frontend build result
+      debug:
+        msg: "Frontend image built: {{ docker_username }}/quizie-frontend:{{ git_commit }}"
+    
+    # ============ PUSH TO DOCKER HUB ============
+    - name: Push backend image to Docker Hub
+      command: |
+        docker push {{ docker_username }}/quizie-backend:{{ git_commit }}
+      register: backend_push
+      when: docker_password | length > 0
+      changed_when: "'Pushed' in backend_push.stdout or 'Layer already exists' in backend_push.stderr"
+    
+    - name: Push backend latest tag
+      command: |
+        docker push {{ docker_username }}/quizie-backend:latest
+      register: backend_latest_push
+      when: docker_password | length > 0
+      changed_when: "'Pushed' in backend_latest_push.stdout or 'Layer already exists' in backend_latest_push.stderr"
+    
+    - name: Push frontend image to Docker Hub
+      command: |
+        docker push {{ docker_username }}/quizie-frontend:{{ git_commit }}
+      register: frontend_push
+      when: docker_password | length > 0
+      changed_when: "'Pushed' in frontend_push.stdout or 'Layer already exists' in frontend_push.stderr"
+    
+    - name: Push frontend latest tag
+      command: |
+        docker push {{ docker_username }}/quizie-frontend:latest
+      register: frontend_latest_push
+      when: docker_password | length > 0
+      changed_when: "'Pushed' in frontend_latest_push.stdout or 'Layer already exists' in frontend_latest_push.stderr"
+    
+    # ============ DISPLAY IMAGES ============
+    - name: List local Docker images
+      command: docker images | grep quizie
+      register: local_images
+      changed_when: false
+    
+    - name: Display build summary
+      debug:
+        msg: |
+          ✓ Docker Build & Push Complete!
+          
+          Images Built:
+          =====================================
+          {{ docker_username }}/quizie-backend:{{ git_commit }}
+          {{ docker_username }}/quizie-backend:latest
+          
+          {{ docker_username }}/quizie-frontend:{{ git_commit }}
+          {{ docker_username }}/quizie-frontend:latest
+          
+          Local Images:
+          =====================================
+          {{ local_images.stdout }}
+          
+          Next Steps:
+          =====================================
+          1. Update Kubernetes manifests if needed:
+             - k8s/backend-deployment.yaml
+             - k8s/frontend-deployment.yaml
+          
+          2. Deploy to Kubernetes:
+             ansible-playbook -i ansible/inventory.yaml ansible/playbook-deploy-k8s.yaml
+
+  post_tasks:
+    - name: Logout from Docker Hub
+      command: docker logout
+      when: docker_password | length > 0

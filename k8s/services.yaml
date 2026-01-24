@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: quizie
+  labels:
+    app: frontend
+spec:
+  type: LoadBalancer
+  selector:
+    app: frontend
+  ports:
+  - name: http
+    port: 80
+    targetPort: 3000
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: quizie
+  labels:
+    app: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+  - name: http
+    port: 5000
+    targetPort: 5000
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+  namespace: quizie
+  labels:
+    app: mongodb
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: mongodb
+  ports:
+  - name: mongo
+    port: 27017
+    targetPort: 27017
+    protocol: TCP

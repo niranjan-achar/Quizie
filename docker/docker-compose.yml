@@ -1,0 +1,67 @@
+# ============================================
+# DOCKER COMPOSE - Local Development
+# ============================================
+# Use this for local testing before pushing to K8s
+# Run: docker-compose up
+
+version: '3.8'
+
+services:
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: quizie-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000
+    depends_on:
+      - backend
+    networks:
+      - quizie-network
+    restart: unless-stopped
+
+  # Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: quizie-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/quizie
+      - GROK_API_KEY=${GROK_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_ENV=development
+    depends_on:
+      - mongodb
+    networks:
+      - quizie-network
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+
+  # MongoDB Service
+  mongodb:
+    image: mongo:6.0-alpine
+    container_name: quizie-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD:-changeme}
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - quizie-network
+    restart: unless-stopped
+
+networks:
+  quizie-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:

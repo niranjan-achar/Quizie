@@ -1,0 +1,77 @@
+# ============================================
+# Ansible Inventory - MINIKUBE LOCAL SETUP
+# ============================================
+# For local Minikube testing on your laptop
+
+all:
+  vars:
+    # Global variables
+    project_name: quizie
+    docker_username: niranjanachar
+    github_repo: niranjan-achar/Quizie
+    app_environment: local
+
+  children:
+    # LOCAL MINIKUBE - Runs on your laptop
+    minikube_local:
+      hosts:
+        minikube:
+          ansible_host: 127.0.0.1
+          ansible_connection: local
+          ansible_python_interpreter: /usr/bin/python3
+      vars:
+        kubeconfig: ~/.kube/config
+        minikube_ip: 192.168.49.2
+        minikube_version: "v1.37.0"
+    
+    # Group for running k8s tasks
+    kubernetes:
+      children:
+        minikube_local:
+
+# ============================================
+# FOR CLOUD DEPLOYMENT (COMMENTED OUT)
+# ============================================
+# When ready for production with real servers,
+# uncomment and configure with actual server IPs:
+#
+# all:
+#   vars:
+#     ansible_user: ubuntu
+#     ansible_ssh_private_key_file: ~/.ssh/id_rsa
+#     ansible_python_interpreter: /usr/bin/python3
+#   
+#   children:
+#     # Kubernetes Master/Control Plane
+#     k8s_masters:
+#       hosts:
+#         master:
+#           ansible_host: YOUR_MASTER_IP
+#           ansible_port: 22
+#           
+#     # Kubernetes Worker Nodes
+#     k8s_workers:
+#       hosts:
+#         worker1:
+#           ansible_host: YOUR_WORKER_1_IP
+#           ansible_port: 22
+#         worker2:
+#           ansible_host: YOUR_WORKER_2_IP
+#           ansible_port: 22
+#     
+#     # All Kubernetes nodes
+#     kubernetes:
+#       children:
+#         - k8s_masters
+#         - k8s_workers
+#       vars:
+#         docker_version: "24.0"
+#         kubernetes_version: "1.28"
+#
+# localhost:
+#   hosts:
+#     minikube:
+#       ansible_host: 127.0.0.1
+#       ansible_port: 22
+#       ansible_user: your_local_user
+#       ansible_connection: local

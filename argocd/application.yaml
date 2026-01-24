@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: quizie
+  namespace: argocd
+spec:
+  # ============ DESTINATION ============
+  # Where to deploy (our K8s cluster)
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: quizie
+  
+  # ============ SOURCE ============
+  # Where to pull manifests from (GitHub)
+  source:
+    repoURL: https://github.com/niranjan-achar/quizie
+    targetRevision: main
+    path: k8s
+  
+  # ============ PROJECT ============
+  project: default
+  
+  # ============ SYNC POLICY ============
+  # How ArgoCD handles syncing
+  syncPolicy:
+    # Auto-sync: Automatically apply changes from Git to cluster
+    automated:
+      prune: true           # Delete resources removed from Git
+      selfHeal: true        # Fix drift (if someone manually changes cluster)
+      allow_empty: false    # Require at least one resource
+    
+    # Sync options
+    syncOptions:
+    - CreateNamespace=true  # Create namespace if doesn't exist
+    
+    # Retry policy for failed syncs
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

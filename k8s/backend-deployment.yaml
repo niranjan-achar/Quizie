@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: quizie
+  labels:
+    app: backend
+    version: v1
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        # Docker Hub image - UPDATE WITH YOUR REGISTRY
+        image: niranjanachar/quizie-backend:c9d02cb
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+          name: http
+        env:
+        # Database connection
+        - name: MONGODB_URI
+          valueFrom:
+            configMapKeyRef:
+              name: db-config
+              key: mongodb-uri
+        
+        # Secrets (GROK API key, JWT secret)
+        - name: GROK_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets
+              key: grok-api-key
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets
+              key: jwt-secret
+        
+        # Node environment
+        - name: NODE_ENV
+          value: "production"
+        
+        # Readiness Probe: Check if API is ready
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 5000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        
+        # Liveness Probe: Check if API is alive
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        
+        # Resource requests and limits
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"

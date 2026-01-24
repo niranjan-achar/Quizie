@@ -1,0 +1,645 @@
+# Complete DevOps Workflow - Code Push to Deployment
+# Quizie Application - Full CI/CD Pipeline
+# Date: January 19, 2026
+# Tools: Git, GitHub Actions, Docker Hub, Kubernetes (Minikube), Ansible
+
+================================================================================
+                    COMPLETE DEPLOYMENT WORKFLOW
+================================================================================
+
+This document provides step-by-step commands to execute the entire DevOps
+workflow from code changes to production deployment.
+
+================================================================================
+                         PREREQUISITES
+================================================================================
+
+1. Local Machine Setup:
+   - Git installed
+   - Docker installed
+   - kubectl installed
+   - Minikube installed
+   - Ansible installed
+   - GitHub account
+   - Docker Hub account
+
+2. Repository Setup:
+   - GitHub repository: https://github.com/niranjan-achar/Quizie
+   - Docker Hub username: niranjanachar
+
+3. Secrets Configured:
+   - GitHub Secrets: DOCKER_USERNAME, DOCKER_PASSWORD
+   - Kubernetes Secrets: GROK_API_KEY, JWT_SECRET, MongoDB credentials
+
+================================================================================
+                    PHASE 1: LOCAL DEVELOPMENT
+================================================================================
+
+Step 1: Make Code Changes
+--------------------------
+cd /home/niranjan/Devops/Quizie
+
+# Make changes to your code
+# Example: Edit backend/index.js or frontend/src/App.js
+
+Step 2: Test Locally (Optional but Recommended)
+------------------------------------------------
+# Test backend
+cd backend
+npm install
+npm start
+
+# Test frontend (in another terminal)
+cd frontend
+npm install
+npm start
+
+# Access at http://localhost:3000
+
+Step 3: Stage and Commit Changes
+---------------------------------
+# Check status
+git status
+
+# Stage changes
+git add .
+
+# Or stage specific files
+git add backend/index.js
+git add frontend/src/App.js
+
+# Commit with descriptive message
+git commit -m "feat: add new quiz feature and UI improvements"
+
+Step 4: Push to GitHub
+----------------------
+# Push to main branch
+git push origin main
+
+# Or push to a feature branch
+git checkout -b feature/new-quiz
+git push origin feature/new-quiz
+
+================================================================================
+                    PHASE 2: GITHUB ACTIONS CI/CD
+================================================================================
+
+Step 5: Monitor GitHub Actions Workflow
+----------------------------------------
+# View in browser:
+https://github.com/niranjan-achar/Quizie/actions
+
+# Or check via CLI (if gh CLI installed)
+gh run list
+gh run watch
+
+What GitHub Actions Does Automatically:
+----------------------------------------
+1. Triggers on push to main branch
+2. Checks out code
+3. Sets up Docker Buildx
+4. Logs into Docker Hub using secrets
+5. Builds backend Docker image
+6. Builds frontend Docker image
+7. Tags images with:
+   - Git commit SHA (e.g., niranjanachar/quizie-backend:a1b2c3d)
+   - latest tag (e.g., niranjanachar/quizie-backend:latest)
+8. Pushes both images to Docker Hub
+9. Displays build summary
+
+Expected Output:
+----------------
+✓ Build and Push Backend Docker Image (2m 15s)
+✓ Build and Push Frontend Docker Image (3m 45s)
+✓ Workflow completed successfully
+
+Step 6: Verify Images on Docker Hub
+------------------------------------
+# View in browser:
+https://hub.docker.com/r/niranjanachar/quizie-backend/tags
+https://hub.docker.com/r/niranjanachar/quizie-frontend/tags
+
+# Or check via CLI
+docker search niranjanachar/quizie-backend
+docker search niranjanachar/quizie-frontend
+
+# Pull and verify locally
+docker pull niranjanachar/quizie-backend:latest
+docker pull niranjanachar/quizie-frontend:latest
+
+# Inspect images
+docker images | grep quizie
+docker inspect niranjanachar/quizie-backend:latest
+
+================================================================================
+                    PHASE 3: KUBERNETES SETUP (MINIKUBE)
+================================================================================
+
+Step 7: Start Minikube Cluster
+-------------------------------
+# Check if Minikube is running
+minikube status
+
+# If not running, start it
+minikube start --memory=8192 --cpus=4 --driver=docker
+
+# Verify cluster is ready
+kubectl cluster-info
+kubectl get nodes
+
+Expected Output:
+----------------
+minikube
+type: Control Plane
+host: Running
+kubelet: Running
+apiserver: Running
+kubeconfig: Configured
+
+Step 8: Configure kubectl Context
+----------------------------------
+# Set context to minikube
+kubectl config use-context minikube
+
+# Verify current context
+kubectl config current-context
+
+# View cluster info
+kubectl cluster-info
+
+Step 9: Load Docker Images into Minikube (if using local images)
+-----------------------------------------------------------------
+# Only needed if using locally built images instead of Docker Hub
+minikube image load niranjanachar/quizie-backend:latest
+minikube image load niranjanachar/quizie-frontend:latest
+
+# Verify images are loaded
+minikube image ls | grep quizie
+
+================================================================================
+                    PHASE 4: ANSIBLE AUTOMATED DEPLOYMENT
+================================================================================
+
+Step 10: Verify Ansible Installation
+-------------------------------------
+# Check Ansible version
+ansible --version
+
+# Check required collections
+ansible-galaxy collection list | grep kubernetes
+
+# Install if not present
+ansible-galaxy collection install community.kubernetes
+
+# Install Python modules
+pip3 install kubernetes pyyaml jsonpatch
+
+Step 11: Verify Ansible Inventory
+----------------------------------
+# Test inventory file
+ansible-inventory -i ansible/inventory.yaml --list
+
+# Ping hosts
+ansible -i ansible/inventory.yaml kubernetes -m ping
+
+Expected Output:
+----------------
+minikube | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+
+Step 12: Run Ansible Deployment Playbook
+-----------------------------------------
+# Deploy entire application to Kubernetes
+ansible-playbook -i ansible/inventory.yaml ansible/playbook-deploy-k8s.yaml -v
+
+What Ansible Does:
+------------------
+✓ Creates 'quizie' namespace
+✓ Creates mongodb-secret (database credentials)
+✓ Creates api-secrets (GROK_API_KEY, JWT_SECRET)
+✓ Creates db-config ConfigMap (MongoDB URI, environment)
+✓ Applies MongoDB StatefulSet (persistent database)
+✓ Applies backend-deployment.yaml (2 replicas)
+✓ Applies frontend-deployment.yaml (2 replicas)
+✓ Applies services.yaml (LoadBalancer services)
+✓ Waits for all pods to be Running
+✓ Displays deployment status
+
+Expected Output:
+----------------
+PLAY [Deploy Quizie to Kubernetes] *******************************************
+
+TASK [Gathering Facts] ********************************************************
+ok: [minikube]
+
+TASK [Create quizie namespace] ************************************************
+changed: [minikube]
+
+...
+
+TASK [Display deployment status] **********************************************
+ok: [minikube] => {
+    "msg": [
+        "✓ Deployment Complete!",
+        "Namespace: quizie",
+        "Total Pods: 5"
+    ]
+}
+
+PLAY RECAP ********************************************************************
+minikube                   : ok=16   changed=2    unreachable=0    failed=0
+
+Step 13: Verify Kubernetes Deployment
+--------------------------------------
+# Check namespace
+kubectl get namespace quizie
+
+# Check all pods
+kubectl get pods -n quizie
+
+# Check with more details
+kubectl get pods -n quizie -o wide
+
+# Check services
+kubectl get svc -n quizie
+
+# Check deployments
+kubectl get deployments -n quizie
+
+# Check statefulsets
+kubectl get statefulset -n quizie
+
+Expected Output:
+----------------
+NAME                                   READY   STATUS    RESTARTS   AGE
+backend-deployment-7d8f9b5c4d-abc12    1/1     Running   0          2m
+backend-deployment-7d8f9b5c4d-def34    1/1     Running   0          2m
+frontend-deployment-8c9d0e6f7g-ghi56   1/1     Running   0          2m
+frontend-deployment-8c9d0e6f7g-jkl78   1/1     Running   0          2m
+mongodb-0                              1/1     Running   0          3m
+
+Step 14: Check Secrets and ConfigMaps
+--------------------------------------
+# List secrets
+kubectl get secrets -n quizie
+
+# View secret details (base64 encoded)
+kubectl describe secret mongodb-secret -n quizie
+kubectl describe secret api-secrets -n quizie
+
+# List configmaps
+kubectl get configmaps -n quizie
+
+# View configmap
+kubectl describe configmap db-config -n quizie
+kubectl get configmap db-config -n quizie -o yaml
+
+Step 15: View Pod Logs
+-----------------------
+# Backend logs
+kubectl logs -n quizie -l app=backend --tail=50
+
+# Frontend logs
+kubectl logs -n quizie -l app=frontend --tail=50
+
+# MongoDB logs
+kubectl logs -n quizie -l app=mongodb --tail=50
+
+# Follow logs in real-time
+kubectl logs -n quizie -l app=backend -f
+
+================================================================================
+                    PHASE 5: APPLICATION ACCESS
+================================================================================
+
+Step 16: Setup Port Forwarding
+-------------------------------
+# Terminal 1: Frontend port-forward
+kubectl port-forward -n quizie svc/frontend-service 3000:80
+
+# Terminal 2: Backend port-forward
+kubectl port-forward -n quizie svc/backend-service 5000:5000
+
+# Run in background (add & at the end)
+kubectl port-forward -n quizie svc/frontend-service 3000:80 &
+kubectl port-forward -n quizie svc/backend-service 5000:5000 &
+
+Step 17: Test Application Endpoints
+------------------------------------
+# Test backend health
+curl http://localhost:5000/api/health
+
+Expected Response:
+{
+  "status": "healthy",
+  "database": "connected"
+}
+
+# Test frontend
+curl http://localhost:3000 | head -20
+
+# Test backend auth endpoint
+curl -X POST http://localhost:5000/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"test123","name":"Test User"}'
+
+Step 18: Access via Browser
+----------------------------
+# Open in browser
+xdg-open http://localhost:3000
+
+# Or manually navigate to:
+http://localhost:3000
+
+Test the application:
+- Sign up new user
+- Login
+- Create quiz
+- Take quiz
+- View results
+
+================================================================================
+                    PHASE 6: VERIFICATION & MONITORING
+================================================================================
+
+Step 19: Check Resource Usage
+------------------------------
+# Pod resource usage
+kubectl top pods -n quizie
+
+# Node resource usage
+kubectl top nodes
+
+# Describe pods for detailed info
+kubectl describe pod -n quizie <pod-name>
+
+Step 20: Check Deployment Events
+---------------------------------
+# View recent events
+kubectl get events -n quizie --sort-by='.lastTimestamp' | tail -20
+
+# Watch events in real-time
+kubectl get events -n quizie --watch
+
+Step 21: Test Self-Healing
+---------------------------
+# Delete a backend pod
+kubectl delete pod -n quizie -l app=backend | head -n 1
+
+# Watch it automatically recreate
+kubectl get pods -n quizie --watch
+
+# Verify app still works (other replica handles requests)
+curl http://localhost:5000/api/health
+
+Step 22: Scale Deployments
+---------------------------
+# Scale backend to 3 replicas
+kubectl scale deployment backend-deployment -n quizie --replicas=3
+
+# Scale frontend to 4 replicas
+kubectl scale deployment frontend-deployment -n quizie --replicas=4
+
+# Verify scaling
+kubectl get pods -n quizie
+
+# Scale back to 2
+kubectl scale deployment backend-deployment -n quizie --replicas=2
+kubectl scale deployment frontend-deployment -n quizie --replicas=2
+
+================================================================================
+                    PHASE 7: UPDATE WORKFLOW
+================================================================================
+
+Step 23: Make Updates and Redeploy
+-----------------------------------
+# 1. Make code changes
+vim backend/index.js
+
+# 2. Commit and push
+git add .
+git commit -m "fix: update API endpoint"
+git push origin main
+
+# 3. Wait for GitHub Actions to build new images (check Actions tab)
+
+# 4. Pull new images in Minikube (if needed)
+minikube ssh docker pull niranjanachar/quizie-backend:latest
+minikube ssh docker pull niranjanachar/quizie-frontend:latest
+
+# 5. Restart deployments to use new images
+kubectl rollout restart deployment backend-deployment -n quizie
+kubectl rollout restart deployment frontend-deployment -n quizie
+
+# 6. Watch rollout status
+kubectl rollout status deployment backend-deployment -n quizie
+kubectl rollout status deployment frontend-deployment -n quizie
+
+# OR: Use Ansible to redeploy (idempotent)
+ansible-playbook -i ansible/inventory.yaml ansible/playbook-deploy-k8s.yaml
+
+================================================================================
+                    PHASE 8: CLEANUP (OPTIONAL)
+================================================================================
+
+Step 24: Delete Deployment
+---------------------------
+# Delete quizie namespace (removes all resources)
+kubectl delete namespace quizie
+
+# Verify deletion
+kubectl get namespace
+kubectl get pods -n quizie
+
+Step 25: Stop Minikube
+-----------------------
+# Stop cluster (preserves state)
+minikube stop
+
+# Delete cluster completely
+minikube delete
+
+# Verify
+minikube status
+
+================================================================================
+                    TROUBLESHOOTING COMMANDS
+================================================================================
+
+Issue: Pods not starting
+------------------------
+kubectl describe pod <pod-name> -n quizie
+kubectl logs <pod-name> -n quizie
+kubectl get events -n quizie
+
+Issue: Image pull errors
+-------------------------
+kubectl describe pod <pod-name> -n quizie | grep -A 10 Events
+minikube image ls | grep quizie
+docker pull niranjanachar/quizie-backend:latest
+
+Issue: MongoDB connection failed
+---------------------------------
+kubectl logs -n quizie -l app=mongodb
+kubectl exec -it mongodb-0 -n quizie -- mongosh -u admin -p
+kubectl get secret mongodb-secret -n quizie -o yaml
+
+Issue: Backend can't connect to MongoDB
+----------------------------------------
+kubectl logs -n quizie -l app=backend | grep -i mongo
+kubectl get configmap db-config -n quizie -o yaml
+kubectl describe svc mongodb-service -n quizie
+
+Issue: Port-forward not working
+--------------------------------
+ps aux | grep port-forward
+kubectl get svc -n quizie
+netstat -tlnp | grep -E '3000|5000'
+
+Issue: GitHub Actions failing
+------------------------------
+# Check workflow file syntax
+cat .github/workflows/ci-pipeline.yaml
+
+# Check secrets are set
+# Go to: GitHub repo → Settings → Secrets and variables → Actions
+
+# View action logs
+https://github.com/niranjan-achar/Quizie/actions
+
+Issue: Ansible playbook errors
+-------------------------------
+# Test syntax
+ansible-playbook ansible/playbook-deploy-k8s.yaml --syntax-check
+
+# Test inventory
+ansible-inventory -i ansible/inventory.yaml --list
+
+# Verbose output
+ansible-playbook -i ansible/inventory.yaml ansible/playbook-deploy-k8s.yaml -vvv
+
+================================================================================
+                    COMPLETE WORKFLOW SUMMARY
+================================================================================
+
+End-to-End Pipeline:
+--------------------
+1. Developer makes code changes
+2. Developer commits and pushes to GitHub (git push)
+3. GitHub Actions automatically triggers:
+   - Builds Docker images
+   - Pushes to Docker Hub
+4. Images available at hub.docker.com/r/niranjanachar/
+5. Ansible playbook deploys to Kubernetes:
+   - Creates namespace and resources
+   - Pulls images from Docker Hub
+   - Deploys pods and services
+6. Application accessible at localhost:3000
+
+Key Commands Chain:
+-------------------
+git add .
+git commit -m "your message"
+git push origin main
+# Wait for GitHub Actions (automatic)
+ansible-playbook -i ansible/inventory.yaml ansible/playbook-deploy-k8s.yaml
+kubectl get pods -n quizie
+kubectl port-forward -n quizie svc/frontend-service 3000:80 &
+kubectl port-forward -n quizie svc/backend-service 5000:5000 &
+# Open http://localhost:3000
+
+Time Breakdown:
+---------------
+- Code changes: 5-30 minutes (depends on feature)
+- Git push: 5 seconds
+- GitHub Actions CI/CD: 5-7 minutes
+- Ansible deployment: 1-2 minutes
+- Application ready: ~8-10 minutes total
+
+Components:
+-----------
+✓ Git - Version control
+✓ GitHub - Code repository + Actions (CI/CD)
+✓ Docker - Containerization
+✓ Docker Hub - Image registry
+✓ Kubernetes - Container orchestration
+✓ Minikube - Local K8s cluster
+✓ Ansible - Infrastructure automation
+✓ MongoDB - Database (StatefulSet)
+✓ Node.js Backend - REST API (2 replicas)
+✓ React Frontend - UI (2 replicas)
+
+High Availability:
+------------------
+- 2 Backend replicas (load balanced)
+- 2 Frontend replicas (load balanced)
+- MongoDB with persistent storage
+- Automatic pod restart on failure
+- Rolling updates (zero downtime)
+
+Security:
+---------
+- Secrets stored in Kubernetes Secrets (base64 encoded)
+- GitHub Actions uses encrypted secrets
+- MongoDB authentication enabled
+- JWT authentication for API
+- No credentials in git repository
+
+Scalability:
+------------
+- Horizontal scaling: kubectl scale deployment
+- Vertical scaling: Update resource limits
+- Load balancing: Kubernetes Services
+- Auto-healing: Kubernetes controllers
+
+================================================================================
+                    QUICK REFERENCE
+================================================================================
+
+Most Common Commands:
+---------------------
+# Deploy/Update
+ansible-playbook -i ansible/inventory.yaml ansible/playbook-deploy-k8s.yaml
+
+# Check status
+kubectl get pods -n quizie
+
+# View logs
+kubectl logs -n quizie -l app=backend -f
+
+# Port forward
+kubectl port-forward -n quizie svc/frontend-service 3000:80
+
+# Scale
+kubectl scale deployment backend-deployment -n quizie --replicas=3
+
+# Update
+kubectl rollout restart deployment backend-deployment -n quizie
+
+# Delete
+kubectl delete namespace quizie
+
+Useful Aliases (add to ~/.bashrc):
+-----------------------------------
+alias k='kubectl'
+alias kgp='kubectl get pods -n quizie'
+alias kgs='kubectl get svc -n quizie'
+alias klogs='kubectl logs -n quizie -l app=backend --tail=100'
+alias kdesc='kubectl describe pod -n quizie'
+alias kpf='kubectl port-forward -n quizie'
+
+================================================================================
+                    END OF DOCUMENT
+================================================================================
+
+For questions or issues, refer to:
+- docs/ARCHITECTURE.md - System design
+- docs/SETUP_GUIDE.md - Setup instructions
+- docs/ANSIBLE_GUIDE.md - Ansible details
+- docs/API_DOCUMENTATION.md - API endpoints
+
+Repository: https://github.com/niranjan-achar/Quizie
+Maintainer: Niranjan Achar
+Date: January 19, 2026

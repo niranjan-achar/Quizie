@@ -1,0 +1,643 @@
+# ============================================
+# COMPLETE GUIDE: DEPLOY QUIZIE TO VERCEL
+# ============================================
+# Date: January 24, 2026
+# Frontend: Vercel
+# Backend: Vercel Serverless Functions OR Keep Kubernetes
+# Database: MongoDB Atlas (recommended for cloud)
+
+================================================================================
+PART 1: PREPARATION - LOCAL CODEBASE CHANGES
+================================================================================
+
+Step 1: Delete Unnecessary Folder
+----------------------------------
+cd /home/niranjan/Devops/Quizie
+rm -rf client
+git add client
+git commit -m "chore: remove unnecessary client folder"
+
+Step 2: Update Frontend for Production
+---------------------------------------
+
+File: frontend/.env.production
+------------------------------
+Create this file:
+
+REACT_APP_API_URL=https://your-backend.vercel.app/api
+
+File: frontend/src/services/api.js
+-----------------------------------
+Verify it's using REACT_APP_API_URL:
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+
+Step 3: Update Backend for Vercel (if deploying backend to Vercel)
+-------------------------------------------------------------------
+
+File: backend/vercel.json
+-------------------------
+Create this file:
+
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "index.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
+
+File: backend/index.js
+----------------------
+Update port handling:
+
+const PORT = process.env.PORT || 5000;
+
+Step 4: Update CORS for Production
+-----------------------------------
+
+File: backend/index.js
+----------------------
+Update CORS to allow Vercel domain:
+
+const cors = require('cors');
+
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://your-frontend.vercel.app',
+    'https://*.vercel.app'
+  ],
+  credentials: true
+}));
+
+Step 5: Setup MongoDB Atlas (Cloud Database)
+---------------------------------------------
+
+1. Go to: https://www.mongodb.com/cloud/atlas
+2. Create free account
+3. Create cluster (M0 Free tier)
+4. Database Access → Create user:
+   - Username: quizieuser
+   - Password: (generate strong password)
+5. Network Access → Add IP Address:
+   - Add: 0.0.0.0/0 (allow from anywhere - needed for Vercel)
+6. Get connection string:
+   - Click "Connect" → "Connect your application"
+   - Copy connection string:
+     mongodb+srv://quizieuser:<password>@cluster0.xxxxx.mongodb.net/quiz-system?retryWrites=true&w=majority
+7. Replace <password> with your actual password
+
+Step 6: Update Backend Database Config
+---------------------------------------
+
+File: backend/config/database.js
+--------------------------------
+Ensure it uses MONGODB_URI from environment:
+
+const mongoose = require('mongoose');
+
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+
+Step 7: Create .env.example Files
+----------------------------------
+
+File: backend/.env.example
+--------------------------
+NODE_ENV=production
+PORT=5000
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/quiz-system
+JWT_SECRET=your-jwt-secret-here
+GROK_API_KEY=your-grok-api-key-here
+
+File: frontend/.env.example
+----------------------------
+REACT_APP_API_URL=https://your-backend.vercel.app/api
+
+Step 8: Update .gitignore
+--------------------------
+
+Ensure these are in .gitignore:
+
+node_modules/
+.env
+.env.local
+.env.production.local
+.vercel
+client/
+*.log
+
+Step 9: Commit All Changes
+---------------------------
+git add .
+git commit -m "feat: configure for Vercel deployment"
+git push origin main
+
+================================================================================
+PART 2: DEPLOY BACKEND TO VERCEL
+================================================================================
+
+Step 10: Install Vercel CLI
+----------------------------
+npm install -g vercel
+
+# Or using curl
+curl https://vercel.com/install | sh
+
+# Verify installation
+vercel --version
+
+Step 11: Login to Vercel
+-------------------------
+vercel login
+
+# Follow the prompts to authenticate
+
+Step 12: Deploy Backend
+------------------------
+cd /home/niranjan/Devops/Quizie/backend
+
+# Initialize and deploy
+vercel
+
+# Answer the prompts:
+? Set up and deploy "~/Devops/Quizie/backend"? Y
+? Which scope do you want to deploy to? (your-username)
+? Link to existing project? N
+? What's your project's name? quizie-backend
+? In which directory is your code located? ./
+? Want to override the settings? N
+
+# Deploy to production
+vercel --prod
+
+# Save the deployment URL (e.g., https://quizie-backend.vercel.app)
+
+Step 13: Configure Backend Environment Variables on Vercel
+-----------------------------------------------------------
+
+Option A: Via Web Dashboard
+----------------------------
+1. Go to: https://vercel.com/dashboard
+2. Select "quizie-backend" project
+3. Settings → Environment Variables
+4. Add these variables:
+
+Variable Name         | Value
+--------------------- | -----
+NODE_ENV             | production
+MONGODB_URI          | mongodb+srv://quizieuser:PASSWORD@cluster0.xxxxx.mongodb.net/quiz-system?retryWrites=true&w=majority
+JWT_SECRET           | generate-random-64-char-string
+GROK_API_KEY         | your-grok-api-key
+
+5. Save and redeploy:
+   Deployments → Click ⋯ → Redeploy
+
+Option B: Via CLI
+-----------------
+vercel env add MONGODB_URI production
+# Paste your MongoDB connection string
+
+vercel env add JWT_SECRET production
+# Paste your JWT secret
+
+vercel env add GROK_API_KEY production
+# Paste your GROK API key
+
+vercel env add NODE_ENV production
+# Enter: production
+
+# Redeploy to apply environment variables
+vercel --prod
+
+Step 14: Test Backend API
+--------------------------
+# Test health endpoint
+curl https://quizie-backend.vercel.app/api/health
+
+# Expected response:
+{
+  "status": "healthy",
+  "database": "connected"
+}
+
+# Test with browser
+xdg-open https://quizie-backend.vercel.app/api/health
+
+================================================================================
+PART 3: DEPLOY FRONTEND TO VERCEL
+================================================================================
+
+Step 15: Update Frontend Environment Variable
+----------------------------------------------
+
+File: frontend/.env.production
+------------------------------
+REACT_APP_API_URL=https://quizie-backend.vercel.app/api
+
+Commit the change:
+cd /home/niranjan/Devops/Quizie
+git add frontend/.env.production
+git commit -m "feat: configure frontend for production backend"
+git push origin main
+
+Step 16: Deploy Frontend
+-------------------------
+cd /home/niranjan/Devops/Quizie/frontend
+
+# Initialize and deploy
+vercel
+
+# Answer the prompts:
+? Set up and deploy "~/Devops/Quizie/frontend"? Y
+? Which scope do you want to deploy to? (your-username)
+? Link to existing project? N
+? What's your project's name? quizie-frontend
+? In which directory is your code located? ./
+? Want to override the settings? N
+? Auto-detected Project Settings:
+  - Framework Preset: Create React App
+  - Build Command: npm run build
+  - Output Directory: build
+? Want to override the settings? N
+
+# Deploy to production
+vercel --prod
+
+# Save the deployment URL (e.g., https://quizie-frontend.vercel.app)
+
+Step 17: Configure Frontend Environment Variables on Vercel
+------------------------------------------------------------
+
+Option A: Via Web Dashboard
+----------------------------
+1. Go to: https://vercel.com/dashboard
+2. Select "quizie-frontend" project
+3. Settings → Environment Variables
+4. Add this variable:
+
+Variable Name         | Value
+--------------------- | -----
+REACT_APP_API_URL    | https://quizie-backend.vercel.app/api
+
+5. Save and redeploy
+
+Option B: Via CLI
+-----------------
+vercel env add REACT_APP_API_URL production
+# Enter: https://quizie-backend.vercel.app/api
+
+# Redeploy
+vercel --prod
+
+Step 18: Update Backend CORS with Frontend URL
+-----------------------------------------------
+
+File: backend/index.js
+----------------------
+Update CORS to include your frontend URL:
+
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://quizie-frontend.vercel.app',
+    'https://*.vercel.app'
+  ],
+  credentials: true
+}));
+
+Commit and redeploy backend:
+cd /home/niranjan/Devops/Quizie
+git add backend/index.js
+git commit -m "fix: update CORS for production frontend"
+git push origin main
+
+cd backend
+vercel --prod
+
+================================================================================
+PART 4: VERIFICATION & TESTING
+================================================================================
+
+Step 19: Test Your Live Application
+------------------------------------
+
+1. Open frontend URL in browser:
+   https://quizie-frontend.vercel.app
+
+2. Test signup:
+   - Click "Sign Up"
+   - Enter email, password, name
+   - Click "Sign Up"
+
+3. Test login:
+   - Enter credentials
+   - Click "Login"
+
+4. Test quiz creation:
+   - Create a new quiz
+   - Verify it saves
+
+5. Test quiz taking:
+   - Take a quiz
+   - Submit answers
+   - View results
+
+Step 20: Check Logs
+--------------------
+
+Backend logs:
+vercel logs quizie-backend
+
+Frontend logs:
+vercel logs quizie-frontend
+
+Or via dashboard:
+https://vercel.com/dashboard → Select project → Logs
+
+Step 21: Monitor Performance
+-----------------------------
+
+Go to Vercel Dashboard:
+1. Analytics → View page load times
+2. Speed Insights → Core Web Vitals
+3. Logs → Real-time request logs
+
+================================================================================
+PART 5: CUSTOM DOMAIN (OPTIONAL)
+================================================================================
+
+Step 22: Add Custom Domain
+---------------------------
+
+1. Buy domain from:
+   - Namecheap
+   - GoDaddy
+   - Google Domains
+
+2. Add to Vercel:
+   - Vercel Dashboard → quizie-frontend
+   - Settings → Domains
+   - Add domain: quizie.yourdomain.com
+   - Add DNS records as instructed
+
+3. Update backend CORS:
+   Add your custom domain to CORS whitelist
+
+Step 23: Setup SSL (Automatic)
+-------------------------------
+
+Vercel automatically provisions SSL certificates.
+Your site will be accessible at:
+https://quizie.yourdomain.com
+
+================================================================================
+PART 6: CONTINUOUS DEPLOYMENT
+================================================================================
+
+Step 24: Connect GitHub Repository
+-----------------------------------
+
+1. Vercel Dashboard → quizie-frontend
+2. Settings → Git
+3. Connect GitHub repository: niranjan-achar/Quizie
+4. Configure:
+   - Root Directory: frontend
+   - Framework: Create React App
+   - Build Command: npm run build
+   - Output Directory: build
+
+5. Repeat for backend:
+   - Root Directory: backend
+   - Framework: Other
+   - Build Command: npm install
+
+Now every push to main branch auto-deploys!
+
+Step 25: Setup Preview Deployments
+-----------------------------------
+
+Vercel automatically creates preview URLs for:
+- Pull requests
+- Branch commits
+
+Access via:
+https://quizie-frontend-git-feature-branch.vercel.app
+
+================================================================================
+PART 7: PRODUCTION CHECKLIST
+================================================================================
+
+✅ Environment Variables Set
+  - Backend: MONGODB_URI, JWT_SECRET, GROK_API_KEY, NODE_ENV
+  - Frontend: REACT_APP_API_URL
+
+✅ Database
+  - MongoDB Atlas cluster created
+  - User created with strong password
+  - IP whitelist: 0.0.0.0/0 (all IPs)
+
+✅ CORS Configuration
+  - Backend allows frontend domain
+  - Credentials enabled
+
+✅ Security
+  - No .env files in git
+  - Strong JWT secret
+  - Strong MongoDB password
+  - HTTPS enabled (Vercel default)
+
+✅ Testing
+  - Signup works
+  - Login works
+  - Quiz creation works
+  - Quiz taking works
+  - API responds correctly
+
+✅ Monitoring
+  - Vercel Analytics enabled
+  - Logs accessible
+  - Error tracking setup
+
+================================================================================
+PART 8: TROUBLESHOOTING
+================================================================================
+
+Issue: CORS Error
+-----------------
+Solution:
+1. Check backend CORS includes frontend URL
+2. Redeploy backend after CORS changes
+3. Clear browser cache
+
+Issue: API Not Responding
+--------------------------
+Solution:
+1. Check backend logs: vercel logs quizie-backend
+2. Verify environment variables are set
+3. Test API endpoint directly: curl https://quizie-backend.vercel.app/api/health
+
+Issue: Database Connection Failed
+----------------------------------
+Solution:
+1. Verify MongoDB Atlas IP whitelist: 0.0.0.0/0
+2. Check MONGODB_URI is correct
+3. Test connection string locally first
+
+Issue: Build Failed
+-------------------
+Solution:
+1. Check build logs in Vercel dashboard
+2. Verify package.json has correct dependencies
+3. Test build locally: npm run build
+
+Issue: Environment Variables Not Loading
+-----------------------------------------
+Solution:
+1. Verify variables are added for "Production" environment
+2. Redeploy after adding variables
+3. Check variable names match exactly (case-sensitive)
+
+================================================================================
+PART 9: COST & LIMITS
+================================================================================
+
+Vercel Free Tier:
+-----------------
+✅ Unlimited deployments
+✅ Automatic HTTPS
+✅ Global CDN
+✅ Analytics
+✅ 100 GB bandwidth/month
+✅ Serverless Functions: 100 hours/month
+✅ Build time: 6000 minutes/month
+
+Limitations:
+------------
+- Serverless function timeout: 10 seconds (free tier)
+- Max function size: 50 MB
+- Max request body: 5 MB
+
+MongoDB Atlas Free Tier (M0):
+-----------------------------
+✅ 512 MB storage
+✅ Shared RAM
+✅ Shared vCPU
+⚠️ Good for testing, limited for production
+
+================================================================================
+PART 10: ALTERNATIVE: KEEP BACKEND ON KUBERNETES
+================================================================================
+
+If you want to keep backend on Kubernetes and only deploy frontend to Vercel:
+
+Step 1: Setup Backend Public Access
+------------------------------------
+# Option A: Use ngrok for testing
+ngrok http 5000
+
+# Option B: Use Minikube tunnel
+minikube tunnel
+
+# Option C: Deploy backend to cloud K8s (GKE, EKS, AKS)
+
+Step 2: Update Frontend Environment Variable
+---------------------------------------------
+REACT_APP_API_URL=https://your-ngrok-url.ngrok.io/api
+
+# Or your K8s ingress URL:
+REACT_APP_API_URL=https://api.yourdomain.com
+
+Step 3: Update Backend CORS
+----------------------------
+Allow Vercel frontend domain in CORS
+
+================================================================================
+SUMMARY: QUICK DEPLOYMENT COMMANDS
+================================================================================
+
+# 1. Delete client folder
+rm -rf /home/niranjan/Devops/Quizie/client
+
+# 2. Create production env files
+cat > frontend/.env.production << EOF
+REACT_APP_API_URL=https://quizie-backend.vercel.app/api
+EOF
+
+cat > backend/vercel.json << 'EOF'
+{
+  "version": 2,
+  "builds": [{"src": "index.js", "use": "@vercel/node"}],
+  "routes": [{"src": "/(.*)", "dest": "index.js"}]
+}
+EOF
+
+# 3. Commit changes
+git add .
+git commit -m "feat: configure for Vercel deployment"
+git push origin main
+
+# 4. Install Vercel CLI
+npm install -g vercel
+
+# 5. Login
+vercel login
+
+# 6. Deploy backend
+cd backend
+vercel --prod
+
+# 7. Add backend env vars via Vercel dashboard:
+# MONGODB_URI, JWT_SECRET, GROK_API_KEY, NODE_ENV
+
+# 8. Deploy frontend
+cd ../frontend
+vercel --prod
+
+# 9. Add frontend env var via Vercel dashboard:
+# REACT_APP_API_URL
+
+# 10. Visit your live site!
+# https://quizie-frontend.vercel.app
+
+================================================================================
+END OF GUIDE
+================================================================================
+
+Your application is now live at:
+- Frontend: https://quizie-frontend.vercel.app
+- Backend: https://quizie-backend.vercel.app
+- API: https://quizie-backend.vercel.app/api
+
+Next steps:
+1. Add custom domain
+2. Setup monitoring
+3. Configure analytics
+4. Add error tracking (Sentry)
+5. Setup CI/CD with GitHub Actions
+
+Happy deploying! 🚀

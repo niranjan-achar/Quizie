@@ -1,0 +1,229 @@
+---
+# ============================================
+# Ansible Playbook - Deploy to Kubernetes
+# ============================================
+# Purpose: Deploy Quizie app to Kubernetes cluster
+# Install required components and deploy manifests
+#
+# Run: ansible-playbook -i ansible/inventory.yaml ansible/playbook-deploy-k8s.yaml
+
+- name: Deploy Quizie to Kubernetes
+  hosts: kubernetes
+  gather_facts: yes
+  
+  vars:
+    kubeconfig: ~/.kube/config
+    project_name: quizie
+    docker_username: niranjanachar
+    
+  environment:
+    KUBECONFIG: "{{ kubeconfig }}"
+  
+  tasks:
+    # ============ CREATE NAMESPACE ============
+    - name: Create quizie namespace
+      kubernetes.core.k8s:
+        name: "{{ project_name }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+    
+    - name: Label namespace
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ project_name }}"
+            labels:
+              environment: local
+              app: quizie
+    
+    # ============ CREATE SECRETS ============
+    - name: Check if mongodb-secret exists
+      kubernetes.core.k8s_info:
+        kind: Secret
+        name: mongodb-secret
+        namespace: "{{ project_name }}"
+        kubeconfig: "{{ kubeconfig }}"
+      register: secret_info
+    
+    - name: Create mongodb-secret if not exists
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: mongodb-secret
+            namespace: "{{ project_name }}"
+          type: Opaque
+          stringData:
+            mongodb_username: admin
+            mongodb_password: Ninja@321
+      when: not secret_info.resources
+    
+    - name: Check if api-secrets exists
+      kubernetes.core.k8s_info:
+        kind: Secret
+        name: api-secrets
+        namespace: "{{ project_name }}"
+        kubeconfig: "{{ kubeconfig }}"
+      register: api_secret_info
+    
+    - name: Create api-secrets if not exists
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: api-secrets
+            namespace: "{{ project_name }}"
+          type: Opaque
+          stringData:
+            GROK_API_KEY: "grok-default-key-change-this"
+            JWT_SECRET: "jwt-secret-key-change-this"
+      when: not api_secret_info.resources
+    
+    # ============ CREATE CONFIGMAPS ============
+    - name: Create db-config ConfigMap
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: db-config
+            namespace: "{{ project_name }}"
+          data:
+            MONGODB_URI: "mongodb://admin:Ninja%40321@mongodb-service:27017/quiz-system?authSource=admin"
+            NODE_ENV: "production"
+            LOG_LEVEL: "info"
+    
+    # ============ APPLY K8S MANIFESTS ============
+    - name: Apply MongoDB StatefulSet
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        src: "{{ playbook_dir }}/../k8s/mongodb-statefulset.yaml"
+    
+    - name: Apply Services
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        src: "{{ playbook_dir }}/../k8s/services.yaml"
+    
+    - name: Apply Backend Deployment
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        src: "{{ playbook_dir }}/../k8s/backend-deployment.yaml"
+    
+    - name: Apply Frontend Deployment
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        src: "{{ playbook_dir }}/../k8s/frontend-deployment.yaml"
+    
+    # ============ VERIFY DEPLOYMENT ============
+    - name: Wait for MongoDB to be ready
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ project_name }}"
+        label_selectors:
+          - app=mongodb
+        field_selectors:
+          - status.phase=Running
+        kubeconfig: "{{ kubeconfig }}"
+      register: mongodb_pods
+      until: mongodb_pods.resources | length > 0
+      retries: 30
+      delay: 10
+    
+    - name: Wait for Backend to be ready
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ project_name }}"
+        label_selectors:
+          - app=backend
+        field_selectors:
+          - status.phase=Running
+        kubeconfig: "{{ kubeconfig }}"
+      register: backend_pods
+      until: backend_pods.resources | length >= 2
+      retries: 30
+      delay: 10
+    
+    - name: Wait for Frontend to be ready
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ project_name }}"
+        label_selectors:
+          - app=frontend
+        field_selectors:
+          - status.phase=Running
+        kubeconfig: "{{ kubeconfig }}"
+      register: frontend_pods
+      until: frontend_pods.resources | length >= 2
+      retries: 30
+      delay: 10
+    
+    # ============ DISPLAY DEPLOYMENT INFO ============
+    - name: Get all pods in quizie namespace
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ project_name }}"
+        kubeconfig: "{{ kubeconfig }}"
+      register: all_pods
+    
+    - name: Display deployment status
+      debug:
+        msg: |
+          ✓ Deployment Complete!
+          
+          Quizie Application Status:
+          =============================
+          Namespace: {{ project_name }}
+          Total Pods: {{ all_pods.resources | length }}
+          
+          Pods Running:
+          {% for pod in all_pods.resources %}
+          - {{ pod.metadata.name }}: {{ pod.status.phase }}
+          {% endfor %}
+          
+          Next Steps:
+          =============================
+          1. Start port-forwarding for frontend:
+             kubectl port-forward -n {{ project_name }} svc/frontend-service 3000:80
+          
+          2. Start port-forwarding for backend:
+             kubectl port-forward -n {{ project_name }} svc/backend-service 5000:5000
+          
+          3. Access the app at: http://localhost:3000
+          
+          View logs:
+          - Backend: kubectl logs -n {{ project_name }} -l app=backend -f
+          - Frontend: kubectl logs -n {{ project_name }} -l app=frontend -f
+          - MongoDB: kubectl logs -n {{ project_name }} -l app=mongodb -f
+    
+    - name: Deployment summary
+      set_fact:
+        deployment_info:
+          status: "success"
+          namespace: "{{ project_name }}"
+          pods_count: "{{ all_pods.resources | length }}"
+          timestamp: "{{ ansible_date_time.iso8601 }}"
+      register: deployment_summary
+
+  handlers:
+    - name: Restart deployment
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"

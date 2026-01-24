@@ -1,0 +1,237 @@
+---
+# ============================================
+# Ansible Playbook - Local Machine Setup
+# ============================================
+# Purpose: Setup local development environment
+# Install Docker, kubectl, Minikube, etc.
+#
+# Run: ansible-playbook -i ansible/inventory.yaml ansible/playbook-setup-local.yaml
+
+- name: Setup Local Development Environment
+  hosts: minikube_local
+  gather_facts: yes
+  
+  vars:
+    docker_version: "latest"
+    minikube_version: "v1.37.0"
+    kubectl_version: "v1.28.15"
+    helm_version: "v3.13.0"
+  
+  tasks:
+    # ============ SYSTEM UPDATE ============
+
+    - name: Clean apt cache
+      become: true
+      apt:
+        autoclean: yes
+        autoremove: yes
+        update_cache: no
+
+    - name: Update system packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+        cache_valid_time: 3600
+      become: yes
+      when: ansible_os_family == "Debian"
+    
+    - name: Install system prerequisites
+      apt:
+        name:
+          - curl
+          - wget
+          - git
+          - vim
+          - net-tools
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+          - lsb-release
+          - build-essential
+          - python3-dev
+          - python3-pip
+        state: present
+      become: yes
+      when: ansible_os_family == "Debian"
+    
+    # ============ INSTALL DOCKER ============
+    - name: Check if Docker is already installed
+      command: docker --version
+      register: docker_installed
+      ignore_errors: yes
+      changed_when: false
+    
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      become: yes
+      when:
+        - ansible_os_family == "Debian"
+        - docker_installed.rc != 0
+    
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb https://download.docker.com/linux/{{ ansible_lsb.id | lower }} {{ ansible_lsb.codename }} stable"
+        state: present
+      become: yes
+      when:
+        - ansible_os_family == "Debian"
+        - docker_installed.rc != 0
+    
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+      become: yes
+      when:
+        - ansible_os_family == "Debian"
+        - docker_installed.rc != 0
+    
+    - name: Enable and start Docker
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+        daemon_reload: yes
+      become: yes
+    
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+      become: yes
+    
+    - name: Display Docker version
+      command: docker --version
+      register: docker_version_output
+      changed_when: false
+    
+    - debug:
+        msg: "✓ Docker installed: {{ docker_version_output.stdout }}"
+    
+    # ============ INSTALL KUBECTL ============
+    - name: Check if kubectl is already installed
+      command: kubectl version --client --short
+      register: kubectl_installed
+      ignore_errors: yes
+      changed_when: false
+    
+    - name: Download kubectl
+      get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/amd64/kubectl"
+        dest: /tmp/kubectl
+        mode: '0755'
+      when: kubectl_installed.rc != 0
+    
+    - name: Install kubectl
+      command: sudo install -o root -g root -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+      when: kubectl_installed.rc != 0
+    
+    - name: Display kubectl version
+      command: kubectl version --client --short
+      register: kubectl_version_output
+      changed_when: false
+    
+    - debug:
+        msg: "✓ kubectl installed: {{ kubectl_version_output.stdout }}"
+    
+    # ============ INSTALL MINIKUBE ============
+    - name: Check if Minikube is already installed
+      command: minikube version
+      register: minikube_installed
+      ignore_errors: yes
+      changed_when: false
+    
+    - name: Download Minikube
+      get_url:
+        url: "https://github.com/kubernetes/minikube/releases/download/{{ minikube_version }}/minikube-linux-amd64"
+        dest: /tmp/minikube
+        mode: '0755'
+      when: minikube_installed.rc != 0
+    
+    - name: Install Minikube
+      command: sudo install -o root -g root -m 0755 /tmp/minikube /usr/local/bin/minikube
+      when: minikube_installed.rc != 0
+    
+    - name: Display Minikube version
+      command: minikube version
+      register: minikube_version_output
+      changed_when: false
+    
+    - debug:
+        msg: "✓ Minikube installed: {{ minikube_version_output.stdout }}"
+    
+    # ============ INSTALL HELM ============
+    - name: Check if Helm is already installed
+      command: helm version --short
+      register: helm_installed
+      ignore_errors: yes
+      changed_when: false
+    
+    - name: Download Helm installation script
+      get_url:
+        url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        dest: /tmp/get_helm.sh
+        mode: '0755'
+      when: helm_installed.rc != 0
+    
+    - name: Install Helm
+      command: bash /tmp/get_helm.sh
+      become: yes
+      when: helm_installed.rc != 0
+    
+    - name: Display Helm version
+      command: helm version --short
+      register: helm_version_output
+      changed_when: false
+    
+    - debug:
+        msg: "✓ Helm installed: {{ helm_version_output.stdout }}"
+    
+    # ============ INSTALL ANSIBLE DEPENDENCIES ============
+    - name: Install Python Kubernetes module
+      pip:
+        name:
+          - kubernetes
+          - pyyaml
+          - jsonpatch
+        state: present
+      become: yes
+    
+    # ============ VERIFY INSTALLATION ============
+    - name: Summary - Local Environment Setup Complete
+      debug:
+        msg: |
+          ✓ Local Development Environment Setup Complete!
+          
+          Installed Tools:
+          =====================================
+          {{ docker_version_output.stdout }}
+          {{ kubectl_version_output.stdout }}
+          {{ minikube_version_output.stdout }}
+          {{ helm_version_output.stdout }}
+          
+          Next Steps:
+          =====================================
+          1. Start Minikube (if not running):
+             minikube start --memory=8192 --cpus=4
+          
+          2. Verify Minikube:
+             minikube status
+          
+          3. Deploy Quizie:
+             ansible-playbook -i ansible/inventory.yaml ansible/playbook-deploy-k8s.yaml
+          
+          4. Start port-forwards:
+             kubectl port-forward -n quizie svc/frontend-service 3000:80 &
+             kubectl port-forward -n quizie svc/backend-service 5000:5000 &
+          
+          5. Access the app:
+             http://localhost:3000
