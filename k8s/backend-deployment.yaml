@@ -24,7 +24,7 @@ spec:
       containers:
       - name: backend
         # Docker Hub image - UPDATE WITH YOUR REGISTRY
-        image: niranjanachar/quizie-backend:c9d02cb
+        image: niranjanachar/quizie-backend:1ae8315
         imagePullPolicy: Always
         ports:
         - containerPort: 5000
