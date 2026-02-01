@@ -24,7 +24,7 @@ spec:
       containers:
       - name: frontend
         # Docker Hub image - UPDATE WITH YOUR REGISTRY
-        image: niranjanachar/quizie-frontend:1ae8315
+        image: niranjanachar/quizie-frontend:a2611c4
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
