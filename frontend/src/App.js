@@ -51,12 +51,12 @@ const AppContent = () => {
                 <Link to="/history" className="nav-link">
                   <FiClock /> History
                 </Link>
-                <Link to="/create-room" className="nav-link">
+                {/* <Link to="/create-room" className="nav-link">
                   <FiPlusCircle /> Create Room
                 </Link>
                 <Link to="/join-room" className="nav-link">
                   <FiLogIn /> Join Room
-                </Link>
+                </Link> */}
                 <button onClick={logout} className="nav-link nav-button">
                   <FiLogOut /> Logout
                 </button>
