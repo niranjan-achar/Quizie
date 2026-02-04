@@ -3,7 +3,7 @@
 
 ## Overview
 
-The AI Quiz System is a full-stack web application following a modern three-tier architecture with authentication and real-time multiplayer capabilities:
+The Quizie is a full-stack web application following a modern three-tier architecture with authentication and real-time multiplayer capabilities:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -873,7 +873,7 @@ db.rooms.createIndex({ host: 1, isActive: 1 })
 
 ## Conclusion
 
-The AI Quiz System is built with modern, scalable technologies following best practices in web development. The architecture supports:
+The Quizie is built with modern, scalable technologies following best practices in web development. The architecture supports:
 - **High Performance**: Optimized queries, caching, lazy loading
 - **Security**: JWT auth, input validation, secure storage
 - **Scalability**: Stateless design, database indexing, load balancing

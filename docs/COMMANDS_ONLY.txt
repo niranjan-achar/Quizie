@@ -2,12 +2,15 @@
 # COMPLETE WORKFLOW - COMMANDS ONLY
 # ============================================
 
+
 # PHASE 1: LOCAL DEVELOPMENT
 cd /home/niranjan/Devops/Quizie
 git status
 git add .
 git commit -m "feat: your commit message"
 git push origin main
+
+
 
 # PHASE 2: VERIFY GITHUB ACTIONS
 gh run list
@@ -18,6 +21,8 @@ docker pull niranjanachar/quizie-backend:latest
 docker pull niranjanachar/quizie-frontend:latest
 docker images | grep quizie
 
+
+
 # PHASE 4: START MINIKUBE
 minikube status
 minikube start --memory=8192 --cpus=4 --driver=docker
@@ -25,12 +30,16 @@ kubectl cluster-info
 kubectl get nodes
 kubectl config use-context minikube
 
+
+
+
 # PHASE 5: ANSIBLE DEPLOYMENT
 ansible --version
-ansible-galaxy collection install community.kubernetes
-pip3 install kubernetes pyyaml jsonpatch
 ansible-inventory -i ansible/inventory.yaml --list
-ansible-playbook -i ansible/inventory.yaml ansible/playbook-deploy-k8s.yaml -v
+ansible-playbook -i ansible/inventory.yaml ansible/playbook-deploy-k8s.yaml
+
+
+
 
 # PHASE 6: VERIFY DEPLOYMENT
 kubectl get namespace quizie
@@ -41,6 +50,9 @@ kubectl get deployments -n quizie
 kubectl get statefulset -n quizie
 kubectl get secrets -n quizie
 kubectl get configmaps -n quizie
+
+
+
 
 # PHASE 7: VIEW LOGS
 kubectl logs -n quizie -l app=backend --tail=50

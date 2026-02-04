@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-Before setting up the AI Quiz System, ensure you have the following installed:
+Before setting up the Quizie, ensure you have the following installed:
 
 - **Node.js** (v16 or higher) - [Download](https://nodejs.org/)
 - **MongoDB** (v5 or higher) - [Download](https://www.mongodb.com/try/download/community)
@@ -591,4 +591,4 @@ mongosh quiz-system --eval "show collections"
 
 ## Congratulations! 🎉
 
-Your AI Quiz System is now set up and running. Start creating amazing quizzes powered by GROK LLM!
+Your Quizie is now set up and running. Start creating amazing quizzes powered by GROQ LLM!
